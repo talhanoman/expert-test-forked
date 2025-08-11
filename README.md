@@ -1,73 +1,84 @@
-# Welcome to your Lovable project
-
-## Project info
-
-**URL**: https://lovable.dev/projects/94b52f1d-10a5-4e88-9a9c-5c12cf45d83a
-
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/94b52f1d-10a5-4e88-9a9c-5c12cf45d83a) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+## Overview
+This document outlines the major bugs that were discovered and resolved in the
+Lead Capture Application
+---
+## Critical Fixes Implemented
+### 1. Duplicate Email Function Calls
+**File**: `src/components/LeadCaptureForm.tsx`
+**Severity**: Critical
+**Status**: Fixed
+#### Problem
+The form submission handler was calling the email confirmation function twice, leading to:
+- Duplicate confirmation emails sent to users
+- Wasted API calls and resources
+- Confusion for users receiving multiple emails
+#### Root Cause
+The `handleSubmit` function contained two identical `supabase.functions.invoke('send-confirmation', {...})` calls in sequence.
+#### Fix
+Removed the duplicate email function call, keeping only one invocation:
+```typescript
+// Removed duplicate call
+const { error: emailError } = await supabase.functions.invoke('send-confirmation', {
+  body: { name, email, industry }
+});
 ```
+#### Impact
+- ✅ Single confirmation email per submission
+- ✅ Reduced API usage and costs
+- ✅ Better user experience
 
-**Edit a file directly in GitHub**
+### 2. Missing Database Insertion
+**File**: `src/components/LeadCaptureForm.tsx`
+**Severity**: Critical
+**Status**: Fixed
+#### Problem
+Form submissions were only sending confirmation emails but not saving lead data to the database, resulting in:
+- Lost lead information
+- No data persistence
+- Inability to track or follow up with leads
+#### Root Cause
+The form handler was missing the database insertion operation before calling the email function.
+#### Fix
+Added database insertion before email sending:
+```typescript
+// First, save the lead to the database
+const { error: dbError } = await supabase
+  .from('leads')
+  .insert({
+    name: formData.name,
+    email: formData.email,
+    industry: formData.industry,
+  });
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+if (dbError) {
+  console.error('Error saving lead to database:', dbError);
+  return;
+}
+```
+#### Impact
+- ✅ Lead data properly stored in database
+- ✅ Data persistence and tracking capability
+- ✅ Foundation for lead management system
 
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/94b52f1d-10a5-4e88-9a9c-5c12cf45d83a) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+### 3. OpenAI API Response Index Error
+**File**: `supabase/functions/send-confirmation/index.ts`
+**Severity**: High
+**Status**: Fixed
+#### Problem
+The Edge Function was trying to access the wrong index in the OpenAI API response, causing:
+- Email content generation failures
+- Fallback to generic content instead of personalized emails
+- Poor user experience with non-personalized communications
+#### Root Cause
+The code was accessing `data?.choices[1]?.message?.content` instead of `data?.choices[0]?.message?.content` for the first response.
+#### Fix
+Corrected the array index to access the first choice:
+```typescript
+// Fixed from choices[1] to choices[0]
+return data?.choices[0]?.message?.content;
+```
+#### Impact
+- ✅ Personalized email content generation working
+- ✅ Better user engagement through customized messages
+- ✅ Proper AI-powered personalization functionality
+---

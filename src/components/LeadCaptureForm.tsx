@@ -26,27 +26,22 @@ export const LeadCaptureForm = () => {
     setValidationErrors(errors);
 
     if (errors.length === 0) {
-      // Save to database
-try {
-  const { error: emailError } = await supabase.functions.invoke('send-confirmation', {
-    body: {
-      name: formData.name,
-      email: formData.email,
-      industry: formData.industry,
-    },
-  });
-
-  if (emailError) {
-    console.error('Error sending confirmation email:', emailError);
-  } else {
-    console.log('Confirmation email sent successfully');
-  }
-} catch (emailError) {
-  console.error('Error calling email function:', emailError);
-}
-
-      // Send confirmation email
       try {
+        // First, save the lead to the database
+        const { error: dbError } = await supabase
+          .from('leads')
+          .insert({
+            name: formData.name,
+            email: formData.email,
+            industry: formData.industry,
+          });
+
+        if (dbError) {
+          console.error('Error saving lead to database:', dbError);
+          return;
+        }
+
+        // Then send confirmation email
         const { error: emailError } = await supabase.functions.invoke('send-confirmation', {
           body: {
             name: formData.name,
@@ -60,19 +55,19 @@ try {
         } else {
           console.log('Confirmation email sent successfully');
         }
-      } catch (emailError) {
-        console.error('Error calling email function:', emailError);
-      }
 
-      const lead = {
-        name: formData.name,
-        email: formData.email,
-        industry: formData.industry,
-        submitted_at: new Date().toISOString(), 
-      };
-      setLeads([...leads, lead]);
-      setSubmitted(true);
-      setFormData({ name: '', email: '', industry: '' });
+        const lead = {
+          name: formData.name,
+          email: formData.email,
+          industry: formData.industry,
+          submitted_at: new Date().toISOString(), 
+        };
+        setLeads([...leads, lead]);
+        setSubmitted(true);
+        setFormData({ name: '', email: '', industry: '' });
+      } catch (error) {
+        console.error('Error processing form submission:', error);
+      }
     }
   };
 
